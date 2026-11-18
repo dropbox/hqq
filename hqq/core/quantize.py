@@ -5,6 +5,7 @@ import torch
 from torch import uint8, int32, float16, nn, Tensor
 import copy
 from enum import Enum
+from math import prod
 from typing import Union
 
 from .utils import is_divisible, encode_safetensor_type, decode_safetensor_type
@@ -188,11 +189,9 @@ class Quantizer:
                 W_q = W_q.view(meta["unpack_view_dtype"])
             W_r = Quantizer.unpack[meta["packing"]](W_q, dtype=compute_dtype)
             if meta["nbits"] == 3:
-                W_r = W_r[
-                    : meta["group_size"]
-                    if meta["axis"] == 0
-                    else meta["shape"][0] * meta["shape"][1] // meta["group_size"]
-                ]
+                # 3-bit packing pads rows to a multiple of ten, preserving columns.
+                rows = prod(meta["shape"]) // W_r.shape[1]
+                W_r = W_r[:rows]
         else:
             W_r = W_q.to(compute_dtype)
         W_r = ((W_r - meta["zero"]) * meta["scale"]).reshape(meta["shape"])
