@@ -1,6 +1,7 @@
 import unittest
 import torch
 from hqq.core.bitpack import BitPack
+from hqq.core.quantize import Quantizer
 try:
     import hqq_aten
 except:
@@ -77,6 +78,21 @@ class TestBitPack(unittest.TestCase):
     #3-bit
     def test_3bit_32_torch(self):
         return self.test_nbit_torch(nbits=3, pack_fct=BitPack.pack_3bit_32, unpack_fct=BitPack.unpack_3bit_32, device=self.device)
+
+    def test_3bit_dequantize(self):
+        for device in (["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]):
+            weights = torch.randn(13, 24, device=device)
+            for axis in (0, 1):
+                for group_size in (None, 8):
+                    for channel_wise in (False, True):
+                        with self.subTest(device=device, axis=axis,
+                                          group_size=group_size, channel_wise=channel_wise):
+                            config = dict(nbits=3, axis=axis, group_size=group_size,
+                                          channel_wise=channel_wise, optimize=False, device=device)
+                            raw, raw_meta = Quantizer.quantize(weights, bitpack=False, **config)
+                            packed, meta = Quantizer.quantize(weights, **config)
+                            torch.testing.assert_close(Quantizer.dequantize(packed, meta),
+                                                       Quantizer.dequantize(raw, raw_meta))
 
     @unittest.skipIf(hqq_aten is None, "hqq_aten not available")
     def test_3bit_32_aten(self):

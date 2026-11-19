@@ -189,8 +189,14 @@ class Quantizer:
                 W_q = W_q.view(meta["unpack_view_dtype"])
             W_r = Quantizer.unpack[meta["packing"]](W_q, dtype=compute_dtype)
             if meta["nbits"] == 3:
-                # 3-bit packing pads rows to a multiple of ten, preserving columns.
-                rows = prod(meta["shape"]) // W_r.shape[1]
+                # Packing adds rows, but preserves the width of the quantized matrix.
+                shape = meta["shape"]
+                if W_r.shape[1] == shape[-1]:
+                    rows = prod(shape[:-1])
+                elif meta["axis"] == 0:
+                    rows = meta["group_size"]
+                else:
+                    rows = prod(shape) // meta["group_size"]
                 W_r = W_r[:rows]
         else:
             W_r = W_q.to(compute_dtype)
